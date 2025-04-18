@@ -242,7 +242,7 @@ func (this *HelloRequest) String() string {
 		return "nil"
 	}
 	s := strings.Join([]string{`&HelloRequest{`,
-		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
+		`GatewayServiceName:` + fmt.Sprintf("%v", this.Name) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -253,7 +253,7 @@ func (this *User) String() string {
 	}
 	s := strings.Join([]string{`&User{`,
 		`ID:` + fmt.Sprintf("%v", this.ID) + `,`,
-		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
+		`GatewayServiceName:` + fmt.Sprintf("%v", this.Name) + `,`,
 		`Age:` + fmt.Sprintf("%v", this.Age) + `,`,
 		`}`,
 	}, "")
@@ -298,7 +298,7 @@ func (m *HelloRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field GatewayServiceName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -412,7 +412,7 @@ func (m *User) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field GatewayServiceName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {

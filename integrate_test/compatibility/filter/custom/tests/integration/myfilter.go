@@ -40,7 +40,7 @@ type MyClientFilter struct {
 }
 
 func (f *MyClientFilter) Invoke(ctx context.Context, invoker protocol.Invoker, invocation protocol.Invocation) protocol.Result {
-	fmt.Println("MyClientFilter Invoke is called, method Name = ", invocation.MethodName())
+	fmt.Println("MyClientFilter Invoke is called, method GatewayServiceName = ", invocation.MethodName())
 	return invoker.Invoke(ctx, invocation)
 }
 func (f *MyClientFilter) OnResponse(ctx context.Context, result protocol.Result, invoker protocol.Invoker, protocol protocol.Invocation) protocol.Result {

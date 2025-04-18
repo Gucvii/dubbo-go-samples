@@ -313,6 +313,6 @@ func TestQueryUsers(t *testing.T) {
 //	assert.Nil(t, err)
 //	assert.IsType(t, make(map[interface{}]interface{}, 0), o)
 //	resp := o.(map[interface{}]interface{})
-//	assert.Equal(t, "Joe", resp[0].(*pkg.User).Name)
-//	assert.Equal(t, "Wen", resp[1].(*pkg.User).Name)
+//	assert.Equal(t, "Joe", resp[0].(*pkg.User).GatewayServiceName)
+//	assert.Equal(t, "Wen", resp[1].(*pkg.User).GatewayServiceName)
 //}

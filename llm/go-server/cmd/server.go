@@ -21,9 +21,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
+	"github.com/joho/godotenv"
 	"net/http"
+	"os"
 	"runtime/debug"
+	"strconv"
 )
 
 import (
@@ -31,77 +33,66 @@ import (
 	_ "dubbo.apache.org/dubbo-go/v3/imports"
 	"dubbo.apache.org/dubbo-go/v3/protocol"
 	"dubbo.apache.org/dubbo-go/v3/registry"
+	"github.com/dubbogo/gost/log/logger"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 import (
-	"github.com/apache/dubbo-go-samples/llm/config"
 	chat "github.com/apache/dubbo-go-samples/llm/proto"
 )
 
-var cfg *config.Config
-
 type ChatServer struct {
-	llms map[string]*ollama.LLM
+	llm       *ollama.LLM
+	modelName string
+	port      int
+	weight    int64
 }
 
-func NewChatServer() (*ChatServer, error) {
-
-	llmMap := make(map[string]*ollama.LLM)
-
-	for _, model := range cfg.OllamaModels {
-		if model == "" {
-			continue
-		}
-
-		llm, err := ollama.New(
-			ollama.WithModel(model),
-			ollama.WithServerURL(cfg.OllamaURL),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize model %s: %v", model, err)
-		}
-		llmMap[model] = llm
-		log.Printf("Initialized model: %s", model)
+func NewChatServer(modelName, url, provider string, port int, weight int64) (*ChatServer, error) {
+	// Currently only support ollama
+	if provider != "ollama" {
+		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}
 
-	return &ChatServer{llms: llmMap}, nil
+	llm, err := ollama.New(
+		ollama.WithModel(modelName),
+		ollama.WithServerURL(url),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize model %s: %v", modelName, err)
+	}
+
+	return &ChatServer{
+		llm:       llm,
+		modelName: modelName,
+		port:      port,
+		weight:    weight,
+	}, nil
 }
 
 func (s *ChatServer) Chat(ctx context.Context, req *chat.ChatRequest, stream chat.ChatService_ChatServer) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("panic in Chat: %v\n%s", r, debug.Stack())
+			logger.Errorf("panic in Chat: %v\n%s", r, debug.Stack())
 			err = fmt.Errorf("internal server error")
 		}
 	}()
+	// #test
+	logger.Infof("Now server with weight %d on port %d answering your request.\n", s.weight, s.port)
 
-	if len(s.llms) == 0 {
-		return fmt.Errorf("no LLM models are initialized")
+	if s.modelName != req.Model {
+		logger.Errorf("Model mismatch: expected %s, got %s\n", s.modelName, req.Model)
+		return fmt.Errorf("model mismatch: expected %s, got %s", s.modelName, req.Model)
+	}
+	if s.llm == nil {
+		logger.Error("LLM is not initialized")
+		return fmt.Errorf("LLM is not initialized")
 	}
 
 	if len(req.Messages) == 0 {
-		log.Println("Request contains no messages")
+		logger.Error("Request contains no messages")
 		return fmt.Errorf("empty messages in request")
-	}
-
-	modelName := req.Model
-	var llm *ollama.LLM
-
-	if modelName != "" {
-		var ok bool
-		llm, ok = s.llms[modelName]
-		if !ok {
-			return fmt.Errorf("requested model '%s' is not available", modelName)
-		}
-	} else {
-		for name, l := range s.llms {
-			modelName = name
-			llm = l
-			break
-		}
-		log.Printf("No model specified, using default model: %s", modelName)
 	}
 
 	var messages []llms.MessageContent
@@ -126,8 +117,8 @@ func (s *ChatServer) Chat(ctx context.Context, req *chat.ChatRequest, stream cha
 		if msg.Bin != nil && len(msg.Bin) != 0 {
 			decodeByte, err := base64.StdEncoding.DecodeString(string(msg.Bin))
 			if err != nil {
-				log.Printf("GenerateContent failed: %v\n", err)
-				return fmt.Errorf("GenerateContent failed: %v", err)
+				logger.Errorf("Failed to decode base64 content: %v\n", err)
+				return fmt.Errorf("failed to decode base64 content: %v", err)
 			}
 			imgType := http.DetectContentType(decodeByte)
 			messageContent.Parts = append(messageContent.Parts, llms.BinaryPart(imgType, decodeByte))
@@ -136,7 +127,7 @@ func (s *ChatServer) Chat(ctx context.Context, req *chat.ChatRequest, stream cha
 		messages = append(messages, messageContent)
 	}
 
-	_, err = llm.GenerateContent(
+	_, err = s.llm.GenerateContent(
 		ctx,
 		messages,
 		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
@@ -145,61 +136,145 @@ func (s *ChatServer) Chat(ctx context.Context, req *chat.ChatRequest, stream cha
 			}
 			return stream.Send(&chat.ChatResponse{
 				Content: string(chunk),
-				Model:   modelName,
+				Model:   s.modelName,
 			})
 		}),
 	)
 	if err != nil {
-		log.Printf("GenerateContent failed with model %s: %v\n", modelName, err)
-		return fmt.Errorf("GenerateContent failed with model %s: %v", modelName, err)
+		logger.Errorf("GenerateContent failed with model %s: %v\n", s.modelName, err)
+		return fmt.Errorf("GenerateContent failed with model %s: %v", s.modelName, err)
 	}
 
 	return nil
 }
 
 func main() {
+	// Local environment variables take precedence over .env file
+	modelName := os.Getenv("OLLAMA_MODEL")
+	ollamaUrl := os.Getenv("OLLAMA_URL")
+	provider := os.Getenv("PROVIDER")
+	servicePort := os.Getenv("SERVICE_PORT")
+	nacosUrl := os.Getenv("NACOS_URL")
+	weight := os.Getenv("WEIGHT")
 
-	var err error
-	cfg, err = config.GetConfig()
+	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
+		logger.Infof("Error loading .env file: %v\n", err)
+		return
+	}
+
+	if modelName == "" {
+		logger.Info("OLLAMA_MODEL is not set, loading from .env file...")
+		modelName = os.Getenv("OLLAMA_MODEL")
+		if modelName == "" {
+			logger.Info("OLLAMA_MODEL is also not set in .env file")
+			return
+		}
+	}
+
+	if ollamaUrl == "" {
+		logger.Info("OLLAMA_URL is not set, loading from .env file...")
+		ollamaUrl = os.Getenv("OLLAMA_URL")
+		if ollamaUrl == "" {
+			logger.Info("OLLAMA_URL is also not set in .env file")
+			return
+		}
+	}
+
+	if provider == "" {
+		logger.Info("PROVIDER is not set, loading from .env file...")
+		provider = os.Getenv("PROVIDER")
+		if provider == "" {
+			logger.Info("PROVIDER is also not set in .env file")
+			return
+		}
+	}
+
+	port := 0
+	if servicePort != "" {
+		var err error
+		port, err = strconv.Atoi(servicePort)
+		if err != nil {
+			logger.Infof("Invalid port number from environment: %v\n", err)
+			return
+		}
+	} else {
+		logger.Info("SERVICE_PORT is not set, loading from .env file...")
+		servicePort = os.Getenv("SERVICE_PORT")
+		if servicePort == "" {
+			logger.Info("SERVICE_PORT is also not set in .env file")
+			return
+		}
+		var err error
+		port, err = strconv.Atoi(servicePort)
+		if err != nil {
+			logger.Infof("Invalid port number from .env file: %v\n", err)
+			return
+		}
+	}
+
+	if nacosUrl == "" {
+		logger.Info("NACOS_URL is not set, loading from .env file...")
+		nacosUrl = os.Getenv("NACOS_URL")
+		if nacosUrl == "" {
+			logger.Info("NACOS_URL is also not set in .env file")
+			return
+		}
+	}
+
+	var weightInt int64
+	if weight == "" {
+		logger.Info("WEIGHT is not set, loading from .env file...")
+		weight = os.Getenv("WEIGHT")
+		if weight == "" {
+			// In the source code of dubbogo, if weight is not specified, the initial value should be 0
+			logger.Info("WEIGHT is also not set in .env file, " +
+				"the cluster load balancing strategy will keep equal weight")
+			weight = "0"
+		}
+	}
+
+	weightInt, err = strconv.ParseInt(weight, 10, 64)
+	if err != nil {
+		logger.Infof("Invalid WEIGHT: %v\n", err)
 		return
 	}
 
 	ins, err := dubbo.NewInstance(
+		dubbo.WithName(modelName),
+		dubbo.WithGroup("MODEL_GROUP"),
 		dubbo.WithRegistry(
 			registry.WithNacos(),
-			registry.WithAddress(cfg.NacosURL),
+			registry.WithAddress(nacosUrl),
+			registry.WithWeight(weightInt),
+			registry.WithGroup("MODEL_GROUP"),
 		),
 		dubbo.WithProtocol(
 			protocol.WithTriple(),
-			protocol.WithPort(20000),
+			protocol.WithPort(port),
 		),
 	)
 
-	if err != nil {
-		panic(err)
-	}
 	srv, err := ins.NewServer()
-
 	if err != nil {
-		fmt.Printf("Error creating server: %v\n", err)
+		logger.Errorf("Error creating server: %v\n", err)
 		return
 	}
 
-	chatServer, err := NewChatServer()
+	chatServer, err := NewChatServer(modelName, ollamaUrl, provider, port, weightInt)
 	if err != nil {
-		fmt.Printf("Error creating chat server: %v\n", err)
+		logger.Errorf("Error creating chat server: %v\n", err)
 		return
 	}
 
+	// Register the chat server
 	if err := chat.RegisterChatServiceHandler(srv, chatServer); err != nil {
-		fmt.Printf("Error registering handler: %v\n", err)
+		logger.Errorf("Error registering handler: %v\n", err)
 		return
 	}
 
 	if err := srv.Serve(); err != nil {
-		fmt.Printf("Error starting server: %v\n", err)
+		logger.Errorf("Error starting server: %v\n", err)
 		return
 	}
 }

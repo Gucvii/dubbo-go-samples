@@ -40,7 +40,7 @@ type MyClientFilter struct {
 }
 
 func (f *MyClientFilter) Invoke(ctx context.Context, invoker protocol.Invoker, invocation protocol.Invocation) protocol.Result {
-	fmt.Println("MyClientFilter Invoke is called, method Name = ", invocation.MethodName())
+	fmt.Println("MyClientFilter Invoke is called, method GatewayServiceName = ", invocation.MethodName())
 	invocation.SetAttachment("request-key1", "request-value1")
 	invocation.SetAttachment("request-key2", []string{"request-value2.1", "request-value2.2"})
 	return invoker.Invoke(ctx, invocation)

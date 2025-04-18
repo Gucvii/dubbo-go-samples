@@ -15,6 +15,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.4
 	github.com/joho/godotenv v1.3.0
+	github.com/nacos-group/nacos-sdk-go v1.1.1
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/openzipkin-contrib/zipkin-go-opentracing v0.4.5
@@ -63,6 +64,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-co-op/gocron v1.9.0 // indirect
+	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

@@ -21,6 +21,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/dubbogo/gost/log/logger"
+	"github.com/joho/godotenv"
 	"os"
 	"strings"
 )
@@ -32,8 +34,8 @@ import (
 )
 
 import (
-	"github.com/apache/dubbo-go-samples/llm/config"
 	chat "github.com/apache/dubbo-go-samples/llm/proto"
+	gateway "github.com/apache/dubbo-go-samples/llm/proto1"
 )
 
 type ChatContext struct {
@@ -134,32 +136,87 @@ func createContext() string {
 }
 
 func main() {
-	cfg, err := config.GetConfig()
+	maxContextCount = 3
+	currentCtxID = createContext()
+
+	// Local environment variables take precedence over .client.env file
+	nacosUrl := os.Getenv("NACOS_URL")
+	gatewayServiceName := os.Getenv("GATEWAY_SERVICE_NAME")
+	modelServiceGroup := os.Getenv("MODEL_SERVICE_GROUP")
+
+	err := godotenv.Load(".client.env")
 	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
+		logger.Infof("Error loading .client.env file: %v\n", err)
 		return
 	}
 
-	availableModels = cfg.OllamaModels
-	currentModel = cfg.DefaultModel()
-	maxContextCount = cfg.MaxContextCount
+	if nacosUrl == "" {
+		logger.Info("NACOS_URL is not set, loading from .client.env file...")
+		nacosUrl = os.Getenv("NACOS_URL")
+		if nacosUrl == "" {
+			logger.Info("NACOS_URL is also not set in .client.env file")
+			return
+		}
+	}
 
-	currentCtxID = createContext()
+	if gatewayServiceName == "" {
+		logger.Info("GATEWAY_SERVICE_NAME is not set, loading from .client.env file...")
+		gatewayServiceName = os.Getenv("GATEWAY_SERVICE_NAME")
+		if gatewayServiceName == "" {
+			logger.Info("GATEWAY_SERVICE_NAME is also not set in .client.env file")
+			return
+		}
+	}
 
+	if modelServiceGroup == "" {
+		logger.Info("MODEL_SERVICE_GROUP is not set, loading from .client.env file...")
+		modelServiceGroup = os.Getenv("MODEL_SERVICE_GROUP")
+		if modelServiceGroup == "" {
+			logger.Info("MODEL_SERVICE_GROUP is also not set in .client.env file")
+			return
+		}
+	}
+
+	// Create Dubbo instance for gateway service
 	ins, err := dubbo.NewInstance(
+		dubbo.WithName(gatewayServiceName),
 		dubbo.WithRegistry(
 			registry.WithNacos(),
-			registry.WithAddress(cfg.NacosURL),
+			registry.WithAddress(nacosUrl),
 		),
 	)
 	if err != nil {
-		panic(err)
+		logger.Errorf("Error creating dubbo instance for gateway service: %v\n", err)
+		return
 	}
-	// configure the params that only client layer cares
+
 	cli, err := ins.NewClient()
 	if err != nil {
-		panic(err)
+		logger.Errorf("Error creating dubbo client: %v\n", err)
+		return
 	}
+
+	svc0, err := gateway.NewGatewayService(cli)
+	if err != nil {
+		fmt.Printf("Error creating gateway service: %v\n", err)
+		return
+	}
+
+	info, err := svc0.GetInfo(context.Background(),
+		&gateway.GetInfoRequest{
+			GroupName: modelServiceGroup,
+		})
+	if err != nil {
+		fmt.Printf("Error getting model info: %v\n", err)
+		return
+	}
+
+	availableModels = info.AvailableModels
+	if len(availableModels) == 0 {
+		fmt.Println("No available models found.")
+		return
+	}
+	currentModel = availableModels[0]
 
 	svc, err := chat.NewChatService(cli)
 	if err != nil {

@@ -56,5 +56,5 @@ func (s *ErrorResponseProvider) SayHello(ctx context.Context, in *triplepb.Hello
 	error code = Unknown
 	error message = userDefinedError
 	*/
-	//return &triplepb.User{Name: "Hello " + in.Name, Id: "12345", Age: 21}, errors.New("userDefinedError")
+	//return &triplepb.User{GatewayServiceName: "Hello " + in.GatewayServiceName, Id: "12345", Age: 21}, errors.New("userDefinedError")
 }

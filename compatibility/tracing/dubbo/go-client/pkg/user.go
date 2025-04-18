@@ -32,7 +32,7 @@ type User struct {
 
 func (u User) String() string {
 	return fmt.Sprintf(
-		"User{ID:%s, Name:%s, Age:%d, Time:%s}",
+		"User{ID:%s, GatewayServiceName:%s, Age:%d, Time:%s}",
 		u.Id, u.Name, u.Age, u.Time,
 	)
 }

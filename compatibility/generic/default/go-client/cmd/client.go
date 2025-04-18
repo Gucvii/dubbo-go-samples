@@ -172,7 +172,7 @@ func callQueryUser(refConf config.ReferenceConfig) {
 		// the map represents a User object:
 		// &User {
 		// 		ID: "3213",
-		// 		Name: "panty",
+		// 		GatewayServiceName: "panty",
 		// 		Age: 25,
 		// 		Time: time.Now(),
 		// }

@@ -1,0 +1,64 @@
+global:
+  gateway_service_name: "llm-gateway"             # Gateway service name
+  model_service_group: "MODEL_GROUP"            # Model service group name
+  port: 20001                                   # Gateway service port
+
+# Nacos service discovery configuration
+nacos_config:
+  server_addr: "127.0.0.1:8848"  # Nacos server address
+
+# Model server groups configuration
+server_groups:
+  - model_name: "qwen2.5:3b"     # Model identifier
+    provider: "ollama"
+    base_url: "http://localhost:11434" # Ollama service endpoint
+    init_instances: 2            # Initial instances to launch
+    port: 20800                  # Service port
+
+  - model_name: "qwen2.5:7b"
+    provider: "ollama"
+    base_url: "http://localhost:11434"
+    init_instances: 2
+    port: 20820
+    metadata:
+      weight: 60                # Load balancing weight (total should be 100)
+
+  - model_name: "qwen2.5:7b"
+    provider: "ollama"
+    base_url: "http://localhost:11435"
+    init_instances: 2
+    port: 20830
+    metadata:
+      weight: 40
+
+  - model_name: "llava:7b"
+    provider: "ollama"
+    base_url: "http://localhost:11434"
+    init_instances: 5
+    port: 20880
+
+# Health check configuration
+health_check:
+  interval: "30s"       # Check interval (default 30s)
+  timeout: "5s"         # Timeout for each check
+  max_retries: 3        # Max consecutive failures before marking unhealthy
+  grace_period: "2m"    # Grace period before destroying unhealthy instances
+  failure_action: "destroy" # Final action: destroy or restart
+
+# Routing rules configuration
+routing_rules:
+  - model_name: "qwen2.5:7b"
+    strategy: "weighted_round_robin" # Load balancing strategy
+    fallback_to: "qwen2.5:3b"  # Fallback model when primary fails
+    timeout: "500ms"           # Request timeout threshold
+
+# Auto-scaling configuration
+autoscaling:
+  metrics:
+    - type: "qps"        # Metric type for scaling
+      threshold: 1000    # Scale when QPS > 1000
+      scale_out_step: 2  # Add 2 instances when scaling out
+      scale_in_step: 1   # Remove 1 instance when scaling in
+  cooldown: "300s"      # Cooldown period between scaling actions
+  min_instances: 2      # Minimum running instances
+  max_instances: 10     # Maximum allowed instances

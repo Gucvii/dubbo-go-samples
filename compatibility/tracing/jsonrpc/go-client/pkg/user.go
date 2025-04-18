@@ -32,7 +32,7 @@ type JsonRPCUser struct {
 
 func (u JsonRPCUser) String() string {
 	return fmt.Sprintf(
-		"User{ID:%s, Name:%s, Age:%d, Time:%s}",
+		"User{ID:%s, GatewayServiceName:%s, Age:%d, Time:%s}",
 		u.Id, u.Name, u.Age, u.Birth,
 	)
 }
